@@ -2,11 +2,11 @@
 
 Known gotchas collected from real integration runs in `examples/`. Each entry follows the same shape: **symptom → cause → what to do**, with a link to where it was observed.
 
-Facts below were checked against BOOTH v0.5.3. If a later release changes behavior, the [CHANGELOG](CHANGELOG.md) is the source of truth.
+The runs behind these entries used BOOTH 0.4.9 to 0.5.2. Entries 1, 3 and 4 were updated for v0.5.4, which added `call_failed`. If a later release changes behavior, the [CHANGELOG](CHANGELOG.md) is the source of truth.
 
 ## Contents
 
-1. [`check()` returns `UNCERTAIN` with `answer=None` and no error](#1-check-returns-uncertain-with-answernone-and-no-error)
+1. [`check()` returns `UNCERTAIN` with `answer=None` and no visible error](#1-check-returns-uncertain-with-answernone-and-no-visible-error)
 2. [Wrong answers come back `ACCEPTED` with confidence 1.0](#2-wrong-answers-come-back-accepted-with-confidence-10)
 3. [404 / "model not found" from the provider](#3-404--model-not-found-from-the-provider)
 4. [401 with a new-style API key](#4-401-with-a-new-style-api-key)
@@ -15,13 +15,24 @@ Facts below were checked against BOOTH v0.5.3. If a later release changes behavi
 
 ---
 
-## 1. `check()` returns `UNCERTAIN` with `answer=None` and no error
+## 1. `check()` returns `UNCERTAIN` with `answer=None` and no visible error
 
-**Symptom.** Every call returns `status="UNCERTAIN"`, `answer=None`, `confidence=None`, usually with `attempts=2`. Nothing is raised or printed, so a real failure looks the same as the model genuinely being unsure.
+**Symptom.** Every call returns `status="UNCERTAIN"`, `answer=None`, `confidence=None`, often with `attempts=2`. Nothing is raised or printed, so a real failure can look the same as the model genuinely being unsure.
 
-**Cause.** If `call_fn` raises (bad API key, retired model name, network error, quota), `check()` / `acheck()` catch the exception, treat it as a failed attempt, retry, and finally return a normal-looking `UNCERTAIN`. As of v0.5.3 the exception is not surfaced on the result (see [#9](https://github.com/Vedantgitbot/booth/issues/9)).
+**Cause.** If `call_fn` raises (bad API key, retired model name, network error, quota), `check()` / `acheck()` catch the exception, treat it as a failed attempt, retry, and finally return `UNCERTAIN`. Before v0.5.4 nothing on the result told you this had happened (see [#9](https://github.com/Vedantgitbot/booth/issues/9) for the history). From v0.5.4, `result.call_failed` is `True` when `call_fn` itself failed.
 
-**What to do.** Pass `on_attempt=` and print the attempt's error:
+**What to do.** Check `result.call_failed` first:
+
+```python
+result = booth.check(call_llm, "What is the capital of France?")
+
+if result.call_failed:
+    print("call_fn failed (bad key, retired model, network error?), not a model judgment")
+elif not result.ok:
+    print(f"Genuinely rejected: status={result.status}, method={result.method}")
+```
+
+To see the actual error text, pass `on_attempt=` and print each attempt's error:
 
 ```python
 def show_error(i, attempt):
@@ -31,9 +42,9 @@ def show_error(i, attempt):
 result = booth.check(call_llm, "What is the capital of France?", on_attempt=show_error)
 ```
 
-Rule of thumb: if you see `UNCERTAIN` with `answer=None` and `attempts > 1`, look for an exception inside `call_fn` before blaming the model. You can also call your `call_fn` once directly, outside BOOTH, to see the raw error.
+If you are on v0.5.3 or earlier, upgrade (`pip install -U boothpy`), or use the rule of thumb: `UNCERTAIN` with `answer=None` and `attempts > 1` usually means an exception inside `call_fn`, so look there before blaming the model. In any version you can also call your `call_fn` once directly, outside BOOTH, to see the raw error.
 
-**Seen in:** [`examples/AkashGoswamy_gemini`](examples/AkashGoswamy_gemini) (401 for a bad key, 404 for a retired model; see also [#8](https://github.com/Vedantgitbot/booth/pull/8)).
+**Seen in:** [`examples/AkashGoswamy_gemini`](examples/AkashGoswamy_gemini) (401 for a bad key, 404 for a retired model; see also [#8](https://github.com/Vedantgitbot/booth/pull/8)). That run was on 0.5.2, before `call_failed` existed.
 
 ---
 
@@ -41,9 +52,9 @@ Rule of thumb: if you see `UNCERTAIN` with `answer=None` and `attempts > 1`, loo
 
 **Symptom.** The model gives a factually wrong answer, and `check()` returns `ACCEPTED` with `confidence=1.0`.
 
-**Cause.** The confidence value is self-reported by the model; BOOTH does not verify it. `check()` checks format and internal consistency (parseable output, confidence above the threshold, no ambiguity flag), not facts. This is expected behavior, not a bug. In one run on a local 7B model, all three wrong answers still came back with `confidence: 1.0`.
+**Cause.** The confidence value is self-reported by the model; BOOTH does not verify it. `check()` checks format and internal consistency (parseable output, confidence above the threshold, no ambiguity flag), not facts. This is expected behavior, not a bug. In one run on a local 7B model (`qwen2.5-coder:7b`), all three wrong answers still came back with `confidence: 1.0`.
 
-**What to do.** Do not treat `ok=True` from `check()` as "the answer is true". If you have ground truth, use `check_with_evidence()` to compare the answer against it. Smaller models tend to over-report confidence.
+**What to do.** Do not treat `ok=True` from `check()` as "the answer is true". If you have ground truth, use `check_with_evidence()` to compare the answer against it.
 
 **Seen in:** [`examples/Maintythehuman_ollama`](examples/Maintythehuman_ollama).
 
@@ -51,11 +62,11 @@ Rule of thumb: if you see `UNCERTAIN` with `answer=None` and `attempts > 1`, loo
 
 ## 3. 404 / "model not found" from the provider
 
-**Symptom.** An example copied from another folder or an older tutorial fails with a 404 or "model not found", often hidden behind entry 1 above.
+**Symptom.** An example copied from another folder or an older tutorial fails with a 404 or "model not found", often looking like a plain `UNCERTAIN` (see entry 1).
 
 **Cause.** Provider model names get retired. During the Gemini example, `gemini-2.5-flash-lite` stopped being available to new users, and the API returned a 404 pointing to `gemini-3.5-flash-lite` instead.
 
-**What to do.** Do not assume a model name in an older example is still valid. Check the provider's current model list, and make the model configurable (for example through an environment variable) so a rename is a one-line change.
+**What to do.** Do not assume a model name in an older example is still valid. Check the provider's current model list, and make the model configurable (for example through an environment variable) so a rename is a one-line change. If `result.call_failed` is `True`, the problem is in your `call_fn` (model name, key, network), not in BOOTH.
 
 **Seen in:** [`examples/AkashGoswamy_gemini`](examples/AkashGoswamy_gemini).
 
@@ -65,9 +76,9 @@ Rule of thumb: if you see `UNCERTAIN` with `answer=None` and `attempts > 1`, loo
 
 **Symptom.** `401 UNAUTHENTICATED` (for example `ACCESS_TOKEN_TYPE_UNSUPPORTED`) even though the key was copied correctly.
 
-**Cause.** Newer provider key formats may not be understood by older SDK versions. In the Gemini example, a new-style key (prefix `AQ.` instead of `AIza`) worked only after upgrading the SDK. A deleted or wrong key also returns a 401, so rule that out first.
+**Cause.** Newer provider key formats may not be understood by older SDK versions. In the Gemini example, a new-style key (prefix `AQ.` instead of `AIza`) worked after upgrading the SDK, although the tester notes a deleted key may also have been the cause, so the exact fix is not certain. A deleted or wrong key also returns a 401, so rule that out first.
 
-**What to do.** Upgrade the provider SDK (`pip install -U <sdk>`), confirm the key is the one currently loaded in your environment, and run it once outside BOOTH to separate a key problem from a BOOTH problem. Remember that `check()` hides the error unless you use `on_attempt=` (entry 1).
+**What to do.** Upgrade the provider SDK (`pip install -U <sdk>`), confirm the key is the one currently loaded in your environment, and run it once outside BOOTH to separate a key problem from a BOOTH problem. Inside BOOTH, `result.call_failed` (entry 1) tells you the failure came from `call_fn`, and `on_attempt=` shows the error text.
 
 **Seen in:** [`examples/AkashGoswamy_gemini`](examples/AkashGoswamy_gemini).
 
@@ -93,4 +104,4 @@ Rule of thumb: if you see `UNCERTAIN` with `answer=None` and `attempts > 1`, loo
 
 **What to do.** Test your `compare_fn` on its own with answers you know should pass and fail, including a deliberately wrong one, before wiring it in. Simple keyword or stance checks are fine for demos; use an embedding, entailment, or LLM-judge comparison for real use.
 
-**Seen in:** nearly every example, for instance [`examples/Vedantgitbot_groq`](examples/Vedantgitbot_groq) and the Anthropic example ([`examples/opencode13241-eng_anthropic`](examples/opencode13241-eng_anthropic)), whose RESULTS.md lists lexical phrase matching as a limitation.
+**Seen in:** [`examples/AkashGoswamy_gemini`](examples/AkashGoswamy_gemini) (simple refund-stance check) and [`examples/opencode13241-eng_anthropic`](examples/opencode13241-eng_anthropic) (lexical phrase matching), whose RESULTS.md files both list their comparison logic as a limitation.
