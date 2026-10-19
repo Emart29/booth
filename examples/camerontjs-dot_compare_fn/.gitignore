@@ -1,0 +1,12 @@
+.env
+.env.*
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.log
+*.stderr
+*.jsonl
+.cache/
+.cache_huggingface/
