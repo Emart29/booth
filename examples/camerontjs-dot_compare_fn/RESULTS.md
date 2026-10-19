@@ -19,9 +19,12 @@ No BOOTH source code, dependency declarations, or public behavior changes are pr
 - **Dependencies for this example only:** torch 2.8.0, transformers 4.57.6, sentencepiece 0.2.2.
 - **NLI model:** `MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli`, revision `6f5cf0a2b59cabb106aca4c287eed12e357e90eb`.
 - **Functions:** `booth.check_with_evidence()`; neither BOOTH `check()` nor an LLM generator is involved.
-- **Runs:** 2 identical executions on 10 fixed, authored claim/evidence cases; no retries or model-generated answers.
-- **Script SHA-256:** `f5079fdbdd2870fa4e563eb21cc2bfa2a49be7a1f6d0b8097ef1967703e0fb93`.
-- **Standard output SHA-256, both runs:** `271bec75f9d7bd435e5b3eaf5b5801f5b0b7fa1c2559a0d9bbaf13f0712820e2`.
+- **Runs:** 2 initial executions plus a review-revision rerun on the same 10 authored cases in the recorded local environment; no retries or model-generated answers.
+- **Script SHA-256 (review revision):** `f8e668163cfd5718c953c6cc27fd1143951169e62e77550803663884d8ccb337`. The original submitted script was `f5079fdbdd2870fa4e563eb21cc2bfa2a49be7a1f6d0b8097ef1967703e0fb93`; only its docstring changed.
+- **Standard output SHA-256, both initial local runs and review rerun:** `271bec75f9d7bd435e5b3eaf5b5801f5b0b7fa1c2559a0d9bbaf13f0712820e2`.
+- **Pinned model cache artifact size:** 380,001,591 bytes (approximately **380 MB** in decimal units): 368,877,646-byte `model.safetensors` plus approximately 11 MB of tokenizer/configuration files, inspected at the pinned revision. This is the approximate first-run model/tokenizer download payload, excluding environment installation, caching, and network overhead.
+
+Byte-identical stdout applies to the **two recorded runs on this macOS arm64 environment** only. Full-precision floating-point values, including NLI scores printed in JSON, may differ across CPU/hardware/software platforms. Check the statuses and substantive controls rather than expecting the documented stdout hash to match across machines.
 
 The answer and evidence sequence for each case are held constant between comparator arms.
 The lexical checker counts unique matching words and accepts at a **0.5 overlap threshold**.
@@ -65,12 +68,13 @@ DeBERTa's finer contradiction labeling.
 
 The current comparison provides an illustrative **capability contrast**.
 It does not establish general comparator accuracy, model calibration, actual
-source legitimacy, corpus sufficiency, or successful CAL V1 integration.
+source legitimacy, corpus sufficiency, or safe deployment in an evidence pipeline.
 
 ## Actual stdout from run 1
 
 The following is the complete output printed by `run_example.py` (stdout,
-not manually recomposed predictions). Run 2 produced the same stdout bytes.
+not manually recomposed predictions). Run 2 and the review-revision rerun produced the
+same stdout bytes **locally**; this is not a cross-platform byte-identity guarantee.
 
 ```text
 CONFIG {"booth": "0.5.4", "lexical_threshold": 0.5, "machine": "arm64", "model": "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", "model_revision": "6f5cf0a2b59cabb106aca4c287eed12e357e90eb", "nli_threshold": 0.7, "python": "3.9.6", "system": "Darwin", "torch": "2.8.0", "transformers": "4.57.6"}
@@ -94,21 +98,28 @@ run. Long-input truncation and source-context loss are **not evaluated** here.
 
 ## Reproduction
 
-From a clean BOOTH checkout at `dfe29eb95406bce9822d40cf36babe9e6b753c26`
-with this three-file example folder added:
+From the BOOTH checkout root containing this example (base at creation:
+`dfe29eb95406bce9822d40cf36babe9e6b753c26`), use a **clean Python 3.9+ environment**.
+For macOS/Linux:
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
 python -m pip install boothpy==0.5.4 torch==2.8.0 transformers==4.57.6 sentencepiece==0.2.2
 python examples/camerontjs-dot_compare_fn/run_example.py
 ```
 
-The first run downloads the pinned model and tokenizer unless already cached.
-An API key is not needed. The example itself adds no dependency to BOOTH.
+The example's `import booth` must resolve to **`boothpy==0.5.4` installed from PyPI**, **not to BOOTH imported from the checkout**. The checkout supplies the example script and the separately tested upstream suite; do not `pip install -e .` or put the checkout's `src/` on `PYTHONPATH` in the example environment. The recorded local import resolved to the virtual environment's `site-packages/booth`.
+
+The first run downloads approximately **380 MB** of model and tokenizer files at the pinned revision unless already cached (approximately **369 MB model weights + 11 MB tokenizer/configuration**); allow additional disk space for installed dependencies and cache overhead. An API key is not needed. The example adds no dependency to BOOTH itself.
 The script reports missing packages and model-load failures explicitly.
 
 The **existing upstream pytest suite** was run from this BOOTH checkout
-under the same environment: **348 passed**. The change touches only files
-inside `examples/camerontjs-dot_compare_fn/`.
+under the same Python environment, with `PYTHONPATH="$PWD/src" python -m pytest -v`
+so suite imports resolve to the checkout source: **348 passed** on the review
+revision. The final script rerun exited 0, and its stdout matched the recorded
+block byte-for-byte; the negative missing-dependency check exited 1 with a
+clear installation message. Only example-folder files are changed.
 
 ## What this example teaches
 

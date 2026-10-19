@@ -5,13 +5,22 @@ This is an illustration of compare_fn behavior, not a factual-verification bench
 No LLM generator, retrieval system, API key, or BOOTH code changes are required.
 Both comparators receive exactly the same authored answer and evidence per case.
 
-Reproduce with Python 3.9+ (tested with Python 3.9.6 on macOS arm64):
+From the BOOTH checkout root on macOS/Linux, in a clean Python 3.9+
+environment (tested on Python 3.9.6, macOS arm64):
 
+    python3 -m venv .venv
+    . .venv/bin/activate
     python -m pip install boothpy==0.5.4 torch==2.8.0 transformers==4.57.6 sentencepiece==0.2.2
     python examples/camerontjs-dot_compare_fn/run_example.py
 
-The first execution downloads the pinned Hugging Face model if not cached.
-The only optional dependencies are those installed for this example.
+This example imports boothpy==0.5.4 installed from PyPI, NOT BOOTH from the
+checkout. Do not install the checkout in editable mode or put its src/ on
+PYTHONPATH in the example environment.
+
+The first execution downloads about 380 MB of pinned model/tokenizer files if
+not cached (observed: 369 MB weights plus 11 MB tokenizer/configuration).
+Allow extra disk space for environment and cache overhead. No API key needed.
+The example dependencies do not become BOOTH runtime dependencies.
 """
 from __future__ import annotations
 
