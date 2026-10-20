@@ -10,8 +10,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
+    # 3.15 can't turn the build red until it has run clean once; remove this line then.
+    continue-on-error: ${{ matrix.python-version == '3.15' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -20,12 +23,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
       - name: Install boothpy (editable, with dev deps)
         run: pip install -e ".[dev]"
+
+      # Optional: lets the numpy-specific tests run instead of skipping.
+      # A missing wheel (for example on a Python prerelease) must not fail the job.
+      - name: Install numpy (optional)
+        run: pip install numpy
+        continue-on-error: true
 
       - name: Run tests
         run: pytest -v

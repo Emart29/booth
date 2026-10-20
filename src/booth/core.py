@@ -474,6 +474,12 @@ def _validate_on_attempt_callable(on_attempt) -> None:
         raise TypeError(f"on_attempt must be callable, got {type(on_attempt).__name__}")
 
 
+def _validate_validator_callable(validator) -> None:  # NEW
+    # Fail before any LLM call is spent.
+    if validator is not None and not callable(validator):
+        raise TypeError(f"validator must be callable, got {type(validator).__name__}")
+
+
 def _validate_evidence_args(evidence_threshold: float) -> None:
     # bool is rejected here (unlike max_retries): True/False as a threshold is almost certainly a mistake.
     if isinstance(evidence_threshold, bool) or not isinstance(evidence_threshold, (int, float)):
@@ -484,6 +490,27 @@ def _validate_evidence_args(evidence_threshold: float) -> None:
         raise ValueError(
             f"evidence_threshold must be between 0.0 and 1.0, got {evidence_threshold}"
         )
+
+
+def _materialize_evidence(evidence):  # NEW
+    """Turn a one-shot iterable (generator, iterator) into a list.
+
+    Anything that supports len() (list, tuple, str, numpy array) is returned
+    untouched. Non-iterables (None, ints) are returned as-is so the empty
+    check handles them like before.
+    """
+    try:
+        len(evidence)
+        return evidence
+    except TypeError:
+        pass
+    try:
+        iterator = iter(evidence)
+    except TypeError:
+        return evidence
+    # list() is outside the try on purpose: an error raised inside the
+    # caller's generator must propagate, not be swallowed here.
+    return list(iterator)
 
 
 def _is_empty_evidence(evidence) -> bool:
@@ -510,6 +537,8 @@ def check_with_evidence(
             answer=None, status=UNCERTAIN, confidence=None,
             reason=EMPTY_ANSWER, detail="answer was empty or whitespace-only",
         )
+
+    evidence = _materialize_evidence(evidence)  # NEW
     if _is_empty_evidence(evidence):
         return BoothResult(
             answer=answer, status=UNCERTAIN, confidence=None,
@@ -617,6 +646,7 @@ def check(
             "with an async def __call__)."
         )
     _validate_on_attempt_callable(on_attempt)
+    _validate_validator_callable(validator)  # NEW
     if on_attempt is not None and _is_async_callable(on_attempt):
         raise TypeError(
             "check() cannot await an async on_attempt callback. "
@@ -674,6 +704,7 @@ async def acheck(
         )
     _validate_args(threshold, max_retries)
     _validate_on_attempt_callable(on_attempt)  # sync or async is decided per call below
+    _validate_validator_callable(validator)  # NEW
 
     attempts: List[Attempt] = []
     current_prompt = _build_prompt(prompt)

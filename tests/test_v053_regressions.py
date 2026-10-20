@@ -13,6 +13,11 @@ One fix:
        real attempt.
      - acheck() had no on_attempt validation at all and crashed the
        same way, from its own `on_attempt(i, attempt)` call site.
+
+Note (v0.5.5): a non-callable `validator` used to be pinned here as
+"already safe" (it degraded to UNCERTAIN after spending every retry).
+v0.5.5 rejects it upfront with TypeError instead, like on_attempt. The
+test below was updated to match; fuller coverage is in the v0.5.5 file.
 """
 
 import asyncio
@@ -178,23 +183,27 @@ def test_acheck_non_callable_on_attempt_checked_before_call_fn_runs_even_with_re
 
 
 # ---------------------------------------------------------------------
-# Audit confirmation: validator / compare_fn were checked for the same
-# bug class and found already safe -- these tests pin that behavior so
-# a future change can't silently regress it.
+# Audit confirmation: compare_fn was checked for the same bug class and
+# found already safe -- this test pins that behavior so a future change
+# can't silently regress it. (validator was safe in v0.5.3 but is now
+# rejected upfront as of v0.5.5; see below.)
 # ---------------------------------------------------------------------
 
-def test_non_callable_validator_degrades_gracefully_not_crash():
-    """validator is NOT fixed in this release -- it was already safe.
-    _run_validator() wraps the call in try/except, so a non-callable
-    validator produces a clear rejection (UNCERTAIN, with the TypeError
-    captured in attempt.validation_error) instead of crashing. This
-    test documents and pins that existing, correct behavior."""
-    result = booth.check(
-        _valid_call_fn, "What is the capital of France?", validator="not_callable"
-    )
-    assert result.status == booth.UNCERTAIN
-    assert result.attempts[-1].passed_validation is False
-    assert "not callable" in result.attempts[-1].validation_error
+def test_non_callable_validator_rejected_upfront_since_v055():
+    """Changed in v0.5.5. In v0.5.3 a non-callable validator degraded to
+    UNCERTAIN after spending max_retries + 1 LLM calls. It now raises
+    TypeError before any call_fn runs, matching on_attempt. Fuller
+    coverage lives in the v0.5.5 regression file."""
+    called = {"count": 0}
+
+    def call_fn(prompt):
+        called["count"] += 1
+        return _valid_call_fn(prompt)
+
+    with pytest.raises(TypeError, match="validator must be callable"):
+        booth.check(call_fn, "What is the capital of France?", validator="not_callable")
+
+    assert called["count"] == 0
 
 
 def test_non_callable_compare_fn_degrades_gracefully_not_crash():

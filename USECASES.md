@@ -1001,6 +1001,12 @@ BOOTH cannot fix a bad comparator.
 Note the distinction from `result.checker_failed`: that property is `True` when `compare_fn` *crashes* or returns something unusable as a score — a broken comparator BOOTH can actually detect. A comparator that runs without error but is simply badly designed, like the `return 0.9` example above, produces a normal-looking `ACCEPTED` or `BLOCKED` result with `checker_failed=False`, because nothing about the call itself failed. `checker_failed` catches crashes and malformed returns, not bad logic.
 
 ---
+Two real runs in `examples/` show what a better comparator buys you, and where it still falls short:
+
+* [`examples/camerontjs-dot_compare_fn/`](examples/camerontjs-dot_compare_fn/RESULTS.md) runs a keyword matcher and an NLI model on the same 10 hand-written cases. The keyword matcher accepted "90 days" against a 30-day policy; the NLI model blocked it. It also shows a limit: when one passage supported the claim and another contradicted it, a comparator that returns only the best entailment score hid the contradiction and BOOTH returned `ACCEPTED`. That is a property of the comparator, not of BOOTH, but a single returned number makes it easy to do. Decide how your comparator treats conflicting passages.
+* [`examples/Harithalakshmikt_langchain_flan/`](examples/Harithalakshmikt_langchain_flan/RESULTS.md) shows the opposite failure: an over-strict NLI comparator blocked correct short answers.
+
+Both are small, hand-built demonstrations, not accuracy benchmarks.
 
 # 28. `BLOCKED` Does Not Mean "Factually False"
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "boothpy"
-version = "0.5.4"
+version = "0.5.5"
 description = "A lightweight, provider-agnostic checkpoint layer for trusting AI system outputs."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -21,6 +21,9 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = []
@@ -31,6 +34,9 @@ dev = ["pytest>=7.0"]
 [project.urls]
 Homepage = "https://github.com/Vedantgitbot/booth"
 Repository = "https://github.com/Vedantgitbot/booth"
+Documentation = "https://github.com/Vedantgitbot/booth/blob/main/TUTORIAL.md"
+Changelog = "https://github.com/Vedantgitbot/booth/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Vedantgitbot/booth/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

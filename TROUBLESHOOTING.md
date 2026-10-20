@@ -12,6 +12,9 @@ The runs behind these entries used BOOTH 0.4.9 to 0.5.2. Entries 1, 3 and 4 were
 4. [401 with a new-style API key](#4-401-with-a-new-style-api-key)
 5. [An ambiguous question was not flagged `AMBIGUOUS`](#5-an-ambiguous-question-was-not-flagged-ambiguous)
 6. [`check_with_evidence()` accepts answers it should block](#6-check_with_evidence-accepts-answers-it-should-block)
+7. [A correct short answer is `BLOCKED` by an NLI comparator](#7-a-correct-short-answer-is-blocked-by-an-nli-comparator)
+8. [Conflicting evidence still comes back `ACCEPTED`](#8-conflicting-evidence-still-comes-back-accepted)
+9. [`TypeError: validator must be callable`](#9-typeerror-validator-must-be-callable)
 
 ---
 
@@ -105,3 +108,37 @@ If you are on v0.5.3 or earlier, upgrade (`pip install -U boothpy`), or use the 
 **What to do.** Test your `compare_fn` on its own with answers you know should pass and fail, including a deliberately wrong one, before wiring it in. Simple keyword or stance checks are fine for demos; use an embedding, entailment, or LLM-judge comparison for real use.
 
 **Seen in:** [`examples/AkashGoswamy_gemini`](examples/AkashGoswamy_gemini) (simple refund-stance check) and [`examples/opencode13241-eng_anthropic`](examples/opencode13241-eng_anthropic) (lexical phrase matching), whose RESULTS.md files both list their comparison logic as a limitation.
+
+---
+
+## 7. A correct short answer is `BLOCKED` by an NLI comparator
+
+**Symptom.** With an entailment-based `compare_fn`, answers like `"No"` or `"9 AM to 5 PM"` are `BLOCKED` with a score near zero, even though they are correct. Correct full sentences that need a small inference can also score low (one run scored `"The library closes at 5 PM"` at 0.168 against evidence saying it is open 9 AM to 5 PM).
+
+**Cause.** NLI models judge whether the evidence entails a full-sentence claim. A fragment has no claim to judge, and the question that gives it meaning is not part of the comparison. This is a limit of the comparator, not of BOOTH.
+
+**What to do.** Rewrite short answers into full sentences before comparing (for example by including the question), score against single sentences rather than a whole chunk, and test your comparator on correct answers as well as wrong ones. Do not lower the threshold just to rescue a handful of examples. At a 0.70 threshold, scores of 0.168 and 0.004 both block, so look at the scores before you decide the threshold is wrong.
+
+**Seen in:** [`examples/Harithalakshmikt_langchain_flan`](examples/Harithalakshmikt_langchain_flan).
+
+---
+
+## 8. Conflicting evidence still comes back `ACCEPTED`
+
+**Symptom.** One retrieved passage supports the answer and another contradicts it, yet `check_with_evidence()` returns `ACCEPTED`.
+
+**Cause.** `compare_fn` returns a single number. A comparator that takes the maximum entailment score across passages reports the supporting passage and drops the contradicting one. In the example run, one passage had `p(entail)≈0.994` and another `p(contradict)≈0.997`, and the score handed to BOOTH was 0.994.
+
+**What to do.** Decide how your comparator should treat conflicts and encode it in the score: for example, return a low score if any passage is contradicted, or subtract the strongest contradiction. Keep a conflicting-evidence case in your own tests.
+
+**Seen in:** [`examples/camerontjs-dot_compare_fn`](examples/camerontjs-dot_compare_fn), where this is kept as a documented failure.
+
+---
+
+## 9. `TypeError: validator must be callable`
+
+**Symptom.** `check()` or `acheck()` raises `TypeError: validator must be callable, got <type>` before any LLM call is made.
+
+**Cause.** From v0.5.5, a non-callable `validator` is rejected upfront. Before that it failed every attempt and returned `UNCERTAIN`, after spending all retries. The usual mistake is passing the result of calling a function (a `bool` or a `tuple`) instead of the function itself.
+
+**What to do.** Pass the function: `validator=is_valid` rather than `validator=is_valid(answer)`.

@@ -9,6 +9,53 @@ surface bump the patch version.
 
 Nothing yet.
 
+## [v0.5.5] — one-shot evidence iterators; non-callable validator rejected upfront; Python 3.13-3.15 CI
+
+- **Fixed: `check_with_evidence()` and evidence without `len()`.** A generator,
+  iterator, `map` or `filter` object is always truthy, so an empty one skipped
+  the `NO_EVIDENCE` check, and a non-empty one could be exhausted by the first
+  read inside `compare_fn`, leaving a second read with nothing. Evidence that
+  has no `len()` is now converted to a list once, before the empty check, and
+  `compare_fn` receives that list. Anything with `len()` (list, tuple, string,
+  numpy array) is passed through as the same object, so existing callers see no
+  change. `None` still returns `NO_EVIDENCE`.
+- **Behavior to know:** an exception raised inside the caller's own generator
+  while it is being converted propagates to the caller. It is not reported as
+  `COMPARE_FAILED`, because the failure happened in the caller's code before
+  the checkpoint ran. This includes a `TypeError` raised inside the generator.
+  `answer` is validated first, so a rejected answer does not drain the
+  caller's iterator.
+- **Changed: a non-callable `validator` now raises `TypeError` upfront** in
+  `check()` and `acheck()`, before any `call_fn` runs, the same way
+  `on_attempt` has been handled since v0.5.3. Before this release a
+  non-callable validator failed every attempt, spent `max_retries + 1` LLM
+  calls, and returned `UNCERTAIN` with `method == "validation"`. Code that
+  passed a non-callable validator by mistake and relied on getting `UNCERTAIN`
+  will now get an exception instead. `validator=None` and callable validators
+  (including callable objects) are unaffected, and an `async def` validator
+  still receives the existing "must be synchronous" rejection.
+- **Tests:** added `test_v055_regressions.py` covering one-shot and empty
+  evidence, same-object passthrough for lists, tuples and numpy arrays, a
+  comparator that reads evidence twice, generator errors propagating,
+  non-callable validators in `check()` and `acheck()` with zero `call_fn`
+  calls, and a check that `booth.__version__` matches `pyproject.toml`.
+  The v0.5.3 test `test_non_callable_validator_degrades_gracefully_not_crash`
+  was replaced by `test_non_callable_validator_rejected_upfront_since_v055`,
+  because the behavior it pinned changed on purpose.
+- **CI and packaging:** the test matrix now covers Python 3.9 to 3.15, with
+  `fail-fast: false`. 3.15 runs as a prerelease and is allowed to fail until it
+  has run clean. numpy is installed in CI only (an optional step) so the
+  numpy-specific tests run; BOOTH itself still has no dependencies. Added the
+  3.13 to 3.15 classifiers (see the note below) and `Documentation`,
+  `Changelog` and `Issues` entries under `[project.urls]`.
+- **Examples (no library change):** added `examples/camerontjs-dot_compare_fn/`
+  (keyword matcher vs a pinned DeBERTa NLI comparator on identical inputs,
+  4/10 vs 9/10 against the authored expectations, with a conflicting-evidence
+  case kept as a failure) and `examples/Harithalakshmikt_langchain_flan/`
+  (LangChain + FAISS + FLAN-T5 with an NLI `compare_fn`, including two correct
+  answers that were blocked). Both ran against 0.5.4 and found no BOOTH bug;
+  their findings are about comparator design (TROUBLESHOOTING 7 and 8).
+
 ## [v0.5.4] — call_fn failures are now distinguishable; correct retry prompt after a failed call
 
 A failed `call_fn` (bad key, retired model, network error, quota) used to look
@@ -73,7 +120,11 @@ contributor while running the Gemini example.
   and returned as `COMPARE_FAILED`. A non-callable `validator` does not
   crash but fails validation on every attempt, spending the full retry
   budget; an upfront check is a candidate for a later release.
-- **Tests:** (list your on_attempt regression tests here, or add them.)
+- **Tests:** `test_v053_regressions.py` covers a non-callable `on_attempt`
+  being rejected upfront in `check()` and `acheck()` with `call_fn` never
+  called, `None` and valid sync and async callbacks still working, and an
+  async `on_attempt` in `check()` still getting its own specific error. It also
+  pins that a non-callable `compare_fn` degrades to `COMPARE_FAILED`.
 
 ## [v0.5.2] — check_with_evidence() whitespace-answer / boolean-detail fixes; prompt/call_fn type validation
 
@@ -860,8 +911,10 @@ inspection, and every fix has a dedicated regression test.
   (not blind resampling) when confidence is below a configurable
   threshold. `VERIFIED` / `REPAIRED` / `UNCERTAIN` statuses.
 
-[Unreleased]: https://github.com/Vedantgitbot/booth/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/Vedantgitbot/booth/compare/v0.5.5...HEAD
 
+[v0.5.5]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.5
+[v0.5.4]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.4
 [v0.5.4]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.4
 [v0.5.3]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.3
 [v0.5.2]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.2

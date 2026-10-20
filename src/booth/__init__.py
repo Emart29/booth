@@ -21,7 +21,7 @@ from booth.core import (
     DEFAULT_MAX_RETRIES,
 )
 
-__version__ = "0.5.4"
+__version__ = "0.5.5"
 
 __all__ = [
     "Attempt",
