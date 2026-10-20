@@ -1,4 +1,4 @@
-"""
+r"""
 BOOTH evidence-checking example with a local RAG pipeline.
 
 Provider/model:
@@ -6,17 +6,24 @@ Provider/model:
 - Answer generation: google/flan-t5-base
 - Evidence comparison: cross-encoder/nli-deberta-v3-base
 
-Run from the BOOTH repository root:
-    pip install -e .
-    pip install langchain-text-splitters langchain-community \
+Install:
+    pip install boothpy langchain-text-splitters langchain-community \
         sentence-transformers transformers torch faiss-cpu
+
+Run from the repository root:
     python examples/Harithalakshmikt_langchain_flan/run_example.py
+
+At the prompt, press Enter to use the default question or type your own.
+FLAN-T5 answers it from the retrieved notes, and BOOTH checks that answer
+with check_with_evidence().
+
+The script then checks two hardcoded answers to the default question
+("What time does the library close on weekdays?"), whatever you typed:
+one deliberately wrong (should be BLOCKED) and one correct full sentence
+(a control).
 
 No API key is required. The Hugging Face models are downloaded
 on first use and then run locally.
-
-After your question is answered, the script also runs one deliberately
-wrong answer through BOOTH to show that it gets BLOCKED.
 """
 
 import re
@@ -43,6 +50,7 @@ EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 GENERATION_MODEL = "google/flan-t5-base"
 NLI_MODEL = "cross-encoder/nli-deberta-v3-base"
 EVIDENCE_THRESHOLD = 0.70
+DEFAULT_QUESTION = "What time does the library close on weekdays?"
 
 # Small sample knowledge base; no extra data file is needed.
 KNOWLEDGE_BASE = """
@@ -177,10 +185,8 @@ def make_compare_fn():
     return compare_fn
 
 
-def run_wrong_answer_demo(vector_store, compare_fn):
+def run_hardcoded_answer_demo(vector_store, compare_fn, question):
     """Check one deliberately wrong and one correct hardcoded answer."""
-    question = "What time does the library close on weekdays?"
-
     documents = vector_store.similarity_search(question, k=3)
     evidence = [doc.page_content for doc in documents]
 
@@ -212,11 +218,9 @@ def main():
 
     print("Local RAG + BOOTH evidence check")
     print("Ask about the sample library notes.")
-    question = input("\nQuestion: ").strip()
-
-    if not question:
-        print("Please enter a question.")
-        return
+    question = input(
+        f"\nQuestion (press Enter for: {DEFAULT_QUESTION}): "
+    ).strip() or DEFAULT_QUESTION
 
     # Retrieve the actual evidence chunks from FAISS.
     documents = vector_store.similarity_search(question, k=3)
@@ -252,8 +256,8 @@ def main():
             "using the answer."
         )
 
-    # Show that a deliberately wrong answer is blocked.
-    run_wrong_answer_demo(vector_store, compare_fn)
+    # Check one wrong and one correct hardcoded answer to the default question.
+    run_hardcoded_answer_demo(vector_store, compare_fn, DEFAULT_QUESTION)
 
 
 if __name__ == "__main__":

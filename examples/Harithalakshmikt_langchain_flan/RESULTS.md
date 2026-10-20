@@ -11,7 +11,7 @@
 - **Python / OS:** Python 3.11.0 / Windows (version 26H2)
 
 ## What the example does
-Five short library-policy sentences are defined inline and indexed in FAISS. For a question, the top-3 chunks are retrieved and FLAN-T5 answers from them. BOOTH then checks that answer against the same retrieved chunks using my own NLI-based `compare_fn`. After each question, the script also checks two hardcoded answers (one wrong, one correct) for the same question, to see how the checker treats a simulated hallucination and a correct full sentence.
+Five short library-policy sentences are defined inline and indexed in FAISS. For a question, the top-3 chunks are retrieved and FLAN-T5 answers from them. BOOTH then checks that answer against the same retrieved chunks using my own NLI-based `compare_fn`. After that, the script checks two hardcoded answers (one wrong, one correct) to the default question "What time does the library close on weekdays?", whatever question was typed, to see how the checker treats a simulated hallucination and a correct full sentence.
 
 BOOTH only validates here. The answer comes from FLAN-T5 (or is hardcoded), and the score comes from my `compare_fn`.
 
@@ -62,5 +62,5 @@ An NLI cross-encoder scores whether the evidence entails each sentence of the an
 ## Tips for reproducing
 - Install and run commands are in the `run_example.py` docstring.
 - The first run downloads FLAN-T5-base, MiniLM and the NLI model, so it needs internet and some disk space.
-- Type a real question when prompted. An empty question exits before the checks run.
+- Press Enter at the prompt to use the default question ("What time does the library close on weekdays?"), or type your own.
 - If correct short answers are blocked, try rewriting them as full sentences before comparing, using sentence-level premises, or adjusting the threshold.
