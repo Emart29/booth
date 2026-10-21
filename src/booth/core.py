@@ -2,7 +2,7 @@ import inspect
 import json
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Any, Awaitable, Callable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Awaitable, Callable, Iterable, List, Optional, Sequence, Tuple, Union
 
 CompareFn = Callable[[str, Sequence[str]], Union[bool, float]]
 ValidatorFn = Callable[[str], Union[bool, Tuple[bool, str]]]
@@ -474,7 +474,7 @@ def _validate_on_attempt_callable(on_attempt) -> None:
         raise TypeError(f"on_attempt must be callable, got {type(on_attempt).__name__}")
 
 
-def _validate_validator_callable(validator) -> None:  # NEW
+def _validate_validator_callable(validator) -> None:
     # Fail before any LLM call is spent.
     if validator is not None and not callable(validator):
         raise TypeError(f"validator must be callable, got {type(validator).__name__}")
@@ -492,7 +492,7 @@ def _validate_evidence_args(evidence_threshold: float) -> None:
         )
 
 
-def _materialize_evidence(evidence):  # NEW
+def _materialize_evidence(evidence: Any) -> Sequence[str]:
     """Turn a one-shot iterable (generator, iterator) into a list.
 
     Anything that supports len() (list, tuple, str, numpy array) is returned
@@ -523,7 +523,7 @@ def _is_empty_evidence(evidence) -> bool:
 
 def check_with_evidence(
     answer: str,
-    evidence: Sequence[str],
+    evidence: Iterable[str],
     compare_fn: CompareFn,
     evidence_threshold: float = DEFAULT_THRESHOLD,
 ) -> BoothResult:
@@ -538,15 +538,15 @@ def check_with_evidence(
             reason=EMPTY_ANSWER, detail="answer was empty or whitespace-only",
         )
 
-    evidence = _materialize_evidence(evidence)  # NEW
-    if _is_empty_evidence(evidence):
+    evidence_seq = _materialize_evidence(evidence)
+    if _is_empty_evidence(evidence_seq):
         return BoothResult(
             answer=answer, status=UNCERTAIN, confidence=None,
             reason=NO_EVIDENCE, detail="evidence sequence was empty",
         )
 
     try:
-        raw_result = compare_fn(answer, evidence)
+        raw_result = compare_fn(answer, evidence_seq)
     except Exception as e:
         return BoothResult(
             answer=answer, status=UNCERTAIN, confidence=None,
@@ -646,7 +646,7 @@ def check(
             "with an async def __call__)."
         )
     _validate_on_attempt_callable(on_attempt)
-    _validate_validator_callable(validator)  # NEW
+    _validate_validator_callable(validator)
     if on_attempt is not None and _is_async_callable(on_attempt):
         raise TypeError(
             "check() cannot await an async on_attempt callback. "
@@ -704,7 +704,7 @@ async def acheck(
         )
     _validate_args(threshold, max_retries)
     _validate_on_attempt_callable(on_attempt)  # sync or async is decided per call below
-    _validate_validator_callable(validator)  # NEW
+    _validate_validator_callable(validator)
 
     attempts: List[Attempt] = []
     current_prompt = _build_prompt(prompt)

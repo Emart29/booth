@@ -2,18 +2,26 @@
 
 Known gotchas collected from real integration runs in `examples/`. Each entry follows the same shape: **symptom → cause → what to do**, with a link to where it was observed.
 
-The runs behind these entries used BOOTH 0.4.9 to 0.5.2. Entries 1, 3 and 4 were updated for v0.5.4, which added `call_failed`. If a later release changes behavior, the [CHANGELOG](CHANGELOG.md) is the source of truth.
+The runs behind these entries used BOOTH 0.4.9 to 0.5.4. Entries 1, 3 and 4 were updated for v0.5.4, which added `call_failed`; entry 9 describes v0.5.5. If a later release changes behavior, the [CHANGELOG](CHANGELOG.md) is the source of truth.
 
 ## Contents
 
 1. [`check()` returns `UNCERTAIN` with `answer=None` and no visible error](#1-check-returns-uncertain-with-answernone-and-no-visible-error)
+
 2. [Wrong answers come back `ACCEPTED` with confidence 1.0](#2-wrong-answers-come-back-accepted-with-confidence-10)
+
 3. [404 / "model not found" from the provider](#3-404--model-not-found-from-the-provider)
+
 4. [401 with a new-style API key](#4-401-with-a-new-style-api-key)
+
 5. [An ambiguous question was not flagged `AMBIGUOUS`](#5-an-ambiguous-question-was-not-flagged-ambiguous)
+
 6. [`check_with_evidence()` accepts answers it should block](#6-check_with_evidence-accepts-answers-it-should-block)
+
 7. [A correct short answer is `BLOCKED` by an NLI comparator](#7-a-correct-short-answer-is-blocked-by-an-nli-comparator)
+
 8. [Conflicting evidence still comes back `ACCEPTED`](#8-conflicting-evidence-still-comes-back-accepted)
+
 9. [`TypeError: validator must be callable`](#9-typeerror-validator-must-be-callable)
 
 ---
@@ -27,22 +35,31 @@ The runs behind these entries used BOOTH 0.4.9 to 0.5.2. Entries 1, 3 and 4 were
 **What to do.** Check `result.call_failed` first:
 
 ```python
+
 result = booth.check(call_llm, "What is the capital of France?")
 
 if result.call_failed:
+
     print("call_fn failed (bad key, retired model, network error?), not a model judgment")
+
 elif not result.ok:
+
     print(f"Genuinely rejected: status={result.status}, method={result.method}")
+
 ```
 
 To see the actual error text, pass `on_attempt=` and print each attempt's error:
 
 ```python
+
 def show_error(i, attempt):
+
     if attempt.error:
+
         print(f"[attempt {i + 1}] {attempt.error}")
 
 result = booth.check(call_llm, "What is the capital of France?", on_attempt=show_error)
+
 ```
 
 If you are on v0.5.3 or earlier, upgrade (`pip install -U boothpy`), or use the rule of thumb: `UNCERTAIN` with `answer=None` and `attempts > 1` usually means an exception inside `call_fn`, so look there before blaming the model. In any version you can also call your `call_fn` once directly, outside BOOTH, to see the raw error.
@@ -105,7 +122,7 @@ If you are on v0.5.3 or earlier, upgrade (`pip install -U boothpy`), or use the 
 
 **Cause.** `check_with_evidence()` only runs the `compare_fn` you give it. A weak comparator gives a weak checkpoint. BOOTH can detect a `compare_fn` that crashes or returns something unusable (`result.checker_failed`), but not one that runs fine with bad logic. See [USECASES.md §27](USECASES.md).
 
-**What to do.** Test your `compare_fn` on its own with answers you know should pass and fail, including a deliberately wrong one, before wiring it in. Simple keyword or stance checks are fine for demos; use an embedding, entailment, or LLM-judge comparison for real use.
+**What to do.** Test your `compare_fn` on its own with answers you know should pass and fail, including a deliberately wrong one, before wiring it in. Simple keyword or stance checks are fine for demos; use an embedding, entailment, or LLM-judge comparison for real use. See entries 7 and 8 for what to watch for with entailment comparators.
 
 **Seen in:** [`examples/AkashGoswamy_gemini`](examples/AkashGoswamy_gemini) (simple refund-stance check) and [`examples/opencode13241-eng_anthropic`](examples/opencode13241-eng_anthropic) (lexical phrase matching), whose RESULTS.md files both list their comparison logic as a limitation.
 
@@ -129,7 +146,7 @@ If you are on v0.5.3 or earlier, upgrade (`pip install -U boothpy`), or use the 
 
 **Cause.** `compare_fn` returns a single number. A comparator that takes the maximum entailment score across passages reports the supporting passage and drops the contradicting one. In the example run, one passage had `p(entail)≈0.994` and another `p(contradict)≈0.997`, and the score handed to BOOTH was 0.994.
 
-**What to do.** Decide how your comparator should treat conflicts and encode it in the score: for example, return a low score if any passage is contradicted, or subtract the strongest contradiction. Keep a conflicting-evidence case in your own tests.
+**What to do.** Decide how your comparator should treat conflicts and encode it in the score, for example by lowering the score when a passage contradicts the answer. Be careful: evidence that covers other subjects can look like a contradiction to an NLI model (in the same example, a scope-swapped passage was labelled contradiction at about 0.75), so a strict rule can block correct answers. Test it on correct answers as well as wrong ones, and keep a conflicting-evidence case in your own tests.
 
 **Seen in:** [`examples/camerontjs-dot_compare_fn`](examples/camerontjs-dot_compare_fn), where this is kept as a documented failure.
 

@@ -9,6 +9,23 @@ surface bump the patch version.
 
 Nothing yet.
 
+## [v0.5.6] — Iterable[str] type hint for evidence; docs and packaging fixes
+
+- **Fixed: the `evidence` type hint.** `check_with_evidence()` has accepted
+  generators and iterators since v0.5.5, but `evidence` was still annotated
+  `Sequence[str]`, so mypy and pyright (BOOTH ships `py.typed`) rejected input
+  the code handles. It is now `Iterable[str]`. `CompareFn` stays
+  `Sequence[str]`, because one-shot iterators are converted to a list before
+  `compare_fn` is called. No runtime change.
+- **Cleanup, no behavior change:** removed leftover development comments from
+  `core.py`.
+- **Docs:** README links are now absolute so they work on the PyPI page, and
+  the README lists the two new examples. TUTORIAL covers the non-callable
+  `validator` error and generator evidence. TROUBLESHOOTING 7 to 9 and the new
+  USECASES §27 note describe what the comparator examples found.
+- **Tests:** added `test_v056_regressions.py` (the annotation, set evidence,
+  unchanged behavior after the refactor, no leftover markers).
+
 ## [v0.5.5] — one-shot evidence iterators; non-callable validator rejected upfront; Python 3.13-3.15 CI
 
 - **Fixed: `check_with_evidence()` and evidence without `len()`.** A generator,
@@ -46,7 +63,7 @@ Nothing yet.
   `fail-fast: false`. 3.15 runs as a prerelease and is allowed to fail until it
   has run clean. numpy is installed in CI only (an optional step) so the
   numpy-specific tests run; BOOTH itself still has no dependencies. Added the
-  3.13 to 3.15 classifiers (see the note below) and `Documentation`,
+  3.13 to 3.15 classifiers (Python 3.15 is a prerelease) and `Documentation`,
   `Changelog` and `Issues` entries under `[project.urls]`.
 - **Examples (no library change):** added `examples/camerontjs-dot_compare_fn/`
   (keyword matcher vs a pinned DeBERTa NLI comparator on identical inputs,
@@ -196,7 +213,7 @@ were hardened but `prompt`/`call_fn` themselves were not.
   validation guard with no existing caller ever intentionally relying
   on the old crash (non-str prompt / non-callable call_fn).
 
-[v0.5.2]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.2
+
 
 ## [v0.5.1] — check_with_evidence() reason / detail / checker_failed
 
@@ -911,10 +928,10 @@ inspection, and every fix has a dedicated regression test.
   (not blind resampling) when confidence is below a configurable
   threshold. `VERIFIED` / `REPAIRED` / `UNCERTAIN` statuses.
 
-[Unreleased]: https://github.com/Vedantgitbot/booth/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/Vedantgitbot/booth/compare/v0.5.6...HEAD
 
+[v0.5.6]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.6
 [v0.5.5]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.5
-[v0.5.4]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.4
 [v0.5.4]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.4
 [v0.5.3]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.3
 [v0.5.2]: https://github.com/Vedantgitbot/booth/releases/tag/v0.5.2
