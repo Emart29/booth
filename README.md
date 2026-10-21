@@ -1,278 +1,310 @@
 <p align="center">
-
-  <img src="https://raw.githubusercontent.com/Vedantgitbot/booth/main/assets/Booth_logo.png" alt="BOOTH logo" width="220">
-
+  <img
+    src="https://raw.githubusercontent.com/Vedantgitbot/booth/main/assets/Booth_logo.png"
+    alt="BOOTH logo"
+    width="220"
+  >
 </p>
 
 <h1 align="center">BOOTH</h1>
 
 <p align="center">
-
   <strong>A lightweight checkpoint layer for AI.</strong>
-
 </p>
 
 <p align="center">
-
-  <a href="https://pypi.org/project/boothpy/"><img src="https://img.shields.io/pypi/v/boothpy" alt="PyPI Package"></a>
-
-  <a href="https://pypi.org/project/boothpy/"><img src="https://img.shields.io/pypi/pyversions/boothpy" alt="Python Versions"></a>
-
-  <a href="https://github.com/Vedantgitbot/booth/actions/workflows/tests.yml"><img src="https://github.com/Vedantgitbot/booth/actions/workflows/tests.yml/badge.svg" alt="Tests Status"></a>
-
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/Vedantgitbot/booth" alt="MIT License"></a>
-
+  <a href="https://pypi.org/project/boothpy/">
+    <img src="https://img.shields.io/pypi/v/boothpy" alt="PyPI Package">
+  </a>
+  <a href="https://pypi.org/project/boothpy/">
+    <img src="https://img.shields.io/pypi/pyversions/boothpy" alt="Python Versions">
+  </a>
+  <a href="https://github.com/Vedantgitbot/booth/actions/workflows/tests.yml">
+    <img src="https://github.com/Vedantgitbot/booth/actions/workflows/tests.yml/badge.svg" alt="Tests Status">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/Vedantgitbot/booth" alt="MIT License">
+  </a>
 </p>
 
 <p align="center">
-
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/TUTORIAL.md"><strong>Tutorial</strong></a> •
-
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/USECASES.md"><strong>Use Cases</strong></a> •
-
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/CHANGELOG.md"><strong>Changelog</strong></a> •
-
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/CONTRIBUTING.md"><strong>Contributing</strong></a> •
-
-  <a href="https://github.com/Vedantgitbot/booth/issues"><strong>Issues</strong></a>
-
+  <a href="TUTORIAL.md">Tutorial</a> &bull;
+  <a href="USECASES.md">Use Cases</a> &bull;
+  <a href="CHANGELOG.md">Changelog</a> &bull;
+  <a href="CONTRIBUTING.md">Contributing</a> &bull;
+  <a href="https://github.com/Vedantgitbot/booth/issues">Issues</a>
 </p>
 
 ---
 
 ## ⚡ Quickstart
 
-Install BOOTH via PyPI:
+Every application built on an LLM has to answer one question:
+
+> Should my application trust this LLM output?
+
+BOOTH adds a checkpoint between an LLM response and your application's next action. It returns a structured `BoothResult` so your application can decide whether to proceed, reject, or handle uncertainty.
+
+Install BOOTH from PyPI:
 
 ```bash
-
 pip install boothpy
-
 ```
 
-### Basic Checkpoint (`booth.check`)
+### Basic checkpoint
 
-Every application built on an LLM has to answer: **Should my application trust this LLM output?**
-
-BOOTH sits between your application and an LLM call, handing back a structured decision (`BoothResult`) instead of just whatever text the model returned:
+Pass your existing model-calling function to `booth.check()`:
 
 ```python
-
 import booth
 
-# Pass your existing LLM function into BOOTH
-
+# call_llm is your existing model-calling function.
 result = booth.check(call_llm, "What is the capital of France?")
 
 if result.ok:
-
-    print(result.answer)                       # "Paris" (confident & unambiguous)
-
+    print(result.answer)
 else:
-
-    print(f"BOOTH returned {result.status}")    # AMBIGUOUS / UNCERTAIN — don't ship blind
-
+    print(f"BOOTH returned {result.status}")
 ```
+
+An accepted result means the configured checks passed. It does not prove that the answer is factually correct.
 
 ---
 
-## 🎯 Highlighted Example: Grounding Answers with Evidence
+## 🎯 Grounding Answers with Evidence
 
-Same model, same question, asked with and without BOOTH. This is an actual comparison run, not a constructed demo:
+A model can sound confident while giving an answer that contradicts your documents. Self-reported confidence alone cannot establish whether an answer agrees with a policy, retrieved passage, or other source.
 
-| | Response Output | Application Result |
+`booth.check_with_evidence()` checks a supplied answer against evidence using a comparison function you provide.
 
-|---|---|---|
+### Example: refund-policy answers
 
-| **Without BOOTH** | `"90 days"` (fabricated, no such number exists in policy) | Hallucinated answer sent blindly to user |
+In a documented comparison run, the model produced a fabricated `"90 days"` answer without grounding. The policy stated `"45 days"`.
 
-| **With `booth.check_with_evidence()`** | `"45 days"` (matches real policy document exactly) | **`BLOCKED`** or **`ACCEPTED`** defensible decision |
+| Answer being evaluated | Relationship to the policy | Intended checkpoint decision |
+| :--- | :--- | :--- |
+| `"90 days"` | Contradicts the policy's 45-day period | `BLOCKED` if the comparator detects the disagreement |
+| `"45 days"` | Matches the policy's stated period | `ACCEPTED` if the comparator confirms agreement |
 
-No amount of self-reported confidence catches that first answer. Only checking it against something real does:
+The checkpoint does not turn `"90 days"` into `"45 days"`. It evaluates the answer your application supplies.
 
 ```python
-
 import booth
 
 result = booth.check_with_evidence(
-
     answer=llm_answer,
-
     evidence=retrieved_docs,
-
     compare_fn=your_comparison_function,
-
 )
 
-if result.status == booth.BLOCKED:
-
-    print(f"The answer doesn't agree with what was actually retrieved: {result.detail}")
-
+if result.ok:
+    print(f"Grounded answer: {result.answer}")
 else:
-
-    print(f"Grounded Answer: {result.answer}")
-
+    print(f"Evidence check returned {result.status}: {result.detail}")
 ```
 
-**(The specific fabricated number will vary from run to run; that's uncalibrated sampling. The pattern is the reliable part.)*
+> The specific fabricated number can vary between model runs. The important distinction is whether the answer agrees with the supplied evidence.
 
-check_with_evidence() only runs the compare_fn you give it, so a weak comparator gives a weak check. See the comparator example in the table below for a keyword matcher and an NLI model run on the same inputs.*
+### The comparator matters
+
+`check_with_evidence()` runs the `compare_fn` you provide. A weak comparator gives a weak check.
+
+The examples include a keyword matcher and an NLI model evaluated on the same inputs, along with failure cases and limitations. NLI, or natural language inference, is used here to assess whether evidence supports or contradicts an answer.
+
+See [Provider Integrations and Examples](#-provider-integrations-and-examples) for the documented runs.
 
 ---
 
-## Why BOOTH exists
+## Why BOOTH Exists
 
-A few months ago, a person working an airport gate helped me find mine after I'd gotten lost, boarding pass in hand, signs everywhere, still at the wrong gate. She didn't know where I'd flown in from, how the aircraft was built, or anything about my itinerary beyond that one boarding pass. She didn't need to. She knew the airport, and she knew what to check.
+A few months ago, a person working an airport gate helped me find mine after I'd gotten lost. Boarding pass in hand, signs everywhere, I was still at the wrong gate.
 
-That's the idea BOOTH is built around. The industry's default answer to "the model got it wrong" has mostly been to make the model know more: more context, more compute, bigger models, more tools bolted around it. And the problem still happens, because it isn't always a knowledge problem. Sometimes what's missing isn't more information going in. It's something whose only job is checking whether what came out actually meets the bar.
+She didn't know where I'd flown in from, how the aircraft was built, or anything about my itinerary beyond that one boarding pass. She didn't need to. She knew the airport, and she knew what to check.
+
+That's the idea BOOTH is built around.
+
+The industry's default answer to "the model got it wrong" has mostly been to make the model know more: more context, more compute, bigger models, and more tools bolted around it.
+
+But the problem still happens, because it isn't always a knowledge problem. Sometimes what's missing isn't more information going in. It's something whose only job is checking whether what came out actually meets the bar.
 
 BOOTH doesn't try to know more than your model does. It just knows what to check.
 
-I wrote the longer version of this on Substack: **["Knowing less, but knowing what matters"](https://substack.com/home/post/p-215310975)**.
+I wrote the longer version on Substack: ["Knowing less, but knowing what matters"](https://substack.com/home/post/p-215310975).
 
 ---
 
 ## 🛠️ Checkpoint Modes
 
-BOOTH provides three primary APIs tailored to your application's workflow:
+BOOTH provides three primary APIs:
 
-| Function | Mode | Description |
+| Function | Execution | Purpose |
+| :--- | :--- | :--- |
+| `booth.check()` | Synchronous | Evaluates model responses for parsing, ambiguity, confidence, and an optional custom validator. Retries with reconsideration when appropriate. |
+| `booth.check_with_evidence()` | Synchronous | Evaluates a supplied answer against application-provided evidence using your comparator. Does not call an LLM itself. |
+| `booth.acheck()` | Asynchronous | Async equivalent of `check()`, supporting async model callables and async execution loops. |
 
-|---|---|---|
-
-| `booth.check()` | Synchronous | Evaluates LLM calls for parsing, ambiguity, confidence, and optional custom validator. Retries with reconsideration if needed. |
-
-| `booth.check_with_evidence()` | Synchronous | Grounds an answer against application-retrieved evidence (e.g. RAG pipeline output). Does not execute LLM calls. |
-
-| `booth.acheck()` | Asynchronous | Async equivalent of `check()`, fully supporting async model callables and async execution loops. |
+Your application owns model access, evidence retrieval, and downstream handling. BOOTH provides the checkpoint decision.
 
 ---
 
-## 🚦 Status Codes & Result Inspection
+## 🚦 Status Codes and Result Inspection
 
-`booth.check()` and `booth.check_with_evidence()` return a structured `BoothResult` object.
+Checkpoint results are returned as structured `BoothResult` objects.
 
-### Status Codes
+### Status codes
 
-| Status Code | Type | Description |
+| Status | Outcome | Meaning |
+| :--- | :--- | :--- |
+| `ACCEPTED` | Success | The applicable checks passed. For `check()`, this includes ambiguity, confidence, and any supplied validator. |
+| `REPAIRED` | Success | An earlier attempt failed, but a retry passed. |
+| `AMBIGUOUS` | Rejected | The model reported multiple reasonable readings of the question. Returned immediately without retrying. |
+| `UNCERTAIN` | Rejected | No acceptable result was obtained. Possible causes include low confidence, parsing failure, validator failure, or a failed model call. |
+| `BLOCKED` | Rejected | The evidence comparator rejected the answer against the supplied evidence. |
 
-|---|---|---|
+The default confidence threshold for `check()` is `0.7`.
 
-| `ACCEPTED` | Success | Answer passed all checks (unambiguous, confidence threshold met, validator passed). |
+There is no separate status for an unparseable response. A parsing failure is reported as `UNCERTAIN` with `result.method == "parse_failure"`.
 
-| `REPAIRED` | Success | An earlier attempt failed (low confidence, unparseable response, or failed validator), but a retry passed. |
+For an `UNCERTAIN` result, inspect `result.method` and `result.call_failed` to distinguish the cause.
 
-| `AMBIGUOUS` | Reject | The model reported multiple reasonable readings of the question. Returned immediately, never retried. |
-
-| `UNCERTAIN` | Reject | No acceptable result: confidence never reached the threshold (`default=0.7`), the response couldn't be parsed, the validator never passed, or `call_fn` itself failed. Check `result.method` and `result.call_failed` for which. |
-
-| `BLOCKED` | Reject | Evidence check failed — the answer disagrees with provided evidence documents. |
-
-There is no separate status for a response that can't be parsed: that is `UNCERTAIN` with `result.method == "parse_failure"`.
-
-### Result Inspection
+### Check the result
 
 ```python
-
 result = booth.check(call_llm, "Categorize ticket: Server unreachable")
 
-# 1. Quick status check
-
 if result.ok:
-
     print("Answer:", result.answer)
-
-# 2. Safe unwrapping (returns str if ok, raises BoothRejected otherwise)
-
-try:
-
-    answer = result.unwrap()
-
-except booth.BoothRejected as e:
-
-    print(f"Rejected with status={e.result.status}, method={e.result.method}")
-
-# 3. Rich diagnostic attributes
-
-print(result.status)          # Status string (e.g. ACCEPTED, UNCERTAIN, AMBIGUOUS)
-
-print(result.confidence)      # Confidence score float (0.0 to 1.0)
-
-print(result.method)          # Check failure category ('ambiguity', 'confidence', 'validation', 'parse_failure')
-
-print(result.call_failed)     # True if call_fn itself failed (bad key, retired model, network error)
-
-print(result.attempts)        # List of Attempt objects detailing each retry
-
+else:
+    print("Status:", result.status)
 ```
+
+### Unwrap an accepted answer
+
+`unwrap()` returns the answer when the result is successful and raises `BoothRejected` otherwise.
+
+```python
+try:
+    answer = result.unwrap()
+except booth.BoothRejected as exc:
+    print(
+        f"Rejected with status={exc.result.status}, "
+        f"method={exc.result.method}"
+    )
+```
+
+### Inspect diagnostics
+
+```python
+print(result.status)       # For example: ACCEPTED, UNCERTAIN, or AMBIGUOUS
+print(result.confidence)   # Confidence score
+print(result.method)       # Check or failure category
+print(result.call_failed)  # Whether the model-calling function failed
+print(result.attempts)     # Attempt objects describing the initial call and retries
+```
+
+Failure categories include `ambiguity`, `confidence`, `validation`, and `parse_failure`.
+
+`result.call_failed` helps distinguish an unsuccessful model call—such as a network or API error—from a model response that failed the checkpoint.
 
 ---
 
-## 🔌 Provider Integrations
+## 🔌 Provider Integrations and Examples
 
-BOOTH is **zero-dependency** and **provider-agnostic**. Because your application supplies the model-calling function, it works with any LLM client or provider — rather than take our word for it, see it run for real:
+BOOTH has zero dependencies and is provider-agnostic. Your application supplies the model-calling function, so BOOTH does not require a particular LLM client or provider.
 
-**[→ browse real, runnable integration examples](https://github.com/Vedantgitbot/booth/tree/main/examples)**
+[Browse the runnable integration examples →](examples/)
 
-Each folder is a complete, independently reproducible example contributed against a different provider or model, with the actual console output and findings included — not just code snippets. Currently includes provider examples, a local RAG stack, and a comparator study:
+Each example folder includes runnable code, recorded console output, and findings from an actual run.
 
-| Provider / Model | Function(s) used | What it shows |
+### Provider examples
 
-|---|---|---|
+| Provider or runtime | Model(s) | API(s) demonstrated |
+| :--- | :--- | :--- |
+| Groq | `llama-3.3-70b-versatile` | `check_with_evidence()` |
+| Google Gemini | `gemini-3.5-flash-lite` | `check()`, `check_with_evidence()` |
+| Anthropic | `claude-3-5-haiku-20241022` | `check_with_evidence()` |
+| Ollama / local models | `qwen2.5-coder:7b`, `llama3.2:latest` | `check()`, `acheck()`, `check_with_evidence()` |
 
-| **Groq** (`llama-3.3-70b-versatile`) | `check_with_evidence()` | Evidence-grounded refund policy QA, hallucination blocking |
+These examples cover:
 
-| **Google Gemini** (`gemini-3.5-flash-lite`) | `check()`, `check_with_evidence()` | Ambiguity detection, evidence grounding, and a real BOOTH gap found along the way: failed API calls looked like an unsure model (now separable with `result.call_failed`) |
+- Groq: evidence-grounded refund-policy QA and hallucination blocking.
+- Google Gemini: ambiguity detection, evidence grounding, and an integration issue where failed API calls initially looked like an unsure model. These can now be distinguished with `result.call_failed`.
+- Anthropic: evidence-grounded refund-policy QA against Claude.
+- Ollama: local-model checks, async execution, evidence checks, and both useful and misleading self-reported confidence.
 
-| **Anthropic** (`claude-3-5-haiku-20241022`) | `check_with_evidence()` | Evidence-grounded refund policy QA against Claude |
+### RAG and comparator studies
 
-| **Ollama / local models** (`qwen2.5-coder:7b`, `llama3.2:latest`) | `check()`, `acheck()`, `check_with_evidence()` | `check()` run against a local model with no evidence grounding — confidence self-reporting behavior shown plainly, good and bad |
-| LangChain + FAISS + FLAN-T5 (local, cross-encoder/nli-deberta-v3-base as the comparator) | check_with_evidence() | A local RAG stack with an NLI compare_fn. The wrong answer was blocked, but two correct answers were also blocked: an honest look at an over-strict comparator |
-| Keyword matcher vs. NLI model (MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli) | check_with_evidence() | The same 10 cases through both comparators (4/10 vs 9/10 against the authored expectations), including a conflicting-evidence case that still gets ACCEPTED |
+| Example | Stack or comparator | Finding |
+| :--- | :--- | :--- |
+| Local RAG pipeline | LangChain, FAISS, FLAN-T5, and `cross-encoder/nli-deberta-v3-base` | The comparator blocked the wrong answer, but also blocked two correct answers. |
+| Comparator comparison | Keyword matcher vs. `MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli` | On the same 10 authored cases, the comparators matched expectations in 4/10 and 9/10 cases, respectively. A conflicting-evidence case still received `ACCEPTED`. |
 
-Each example's own `RESULTS.md` documents what actually happened on a real run: what worked, what didn't, and any surprises along the way — including negative results. That's intentional; a confidently-wrong result from `check()` alone on a weaker model is as useful a data point as a clean pass.
+These are documented example results, not a general accuracy guarantee.
 
-Want to add your own? See the [open call for provider examples](https://github.com/Vedantgitbot/booth/issues/2) — any provider, any model, PRs welcome.
+Each example's `RESULTS.md` records what happened: what worked, what failed, and what was surprising. Negative results are intentional. A confidently wrong result from `check()` alone is as useful to document as a clean pass.
+
+To contribute an integration, see the [open call for provider examples](https://github.com/Vedantgitbot/booth/issues/2). Any provider, any model—PRs welcome.
 
 ---
 
 ## 💡 Philosophy
 
-1. **Keep the checkpoint small.** A reusable decision layer, not another full LLM framework.
+1. Keep the checkpoint small.  
+   A reusable decision layer, not another full LLM framework.
 
-2. **Make uncertainty explicit.** Return a structured status instead of silently passing an unacceptable output through.
+2. Make uncertainty explicit.  
+   Return a structured status instead of silently passing an unacceptable output through.
 
-3. **Treat ambiguity, validation, and confidence as separate, ordered checks.** A confident, validator-passing answer can still be ambiguous.
+3. Treat ambiguity, validation, and confidence as separate, ordered checks.  
+   A confident answer that passes a validator can still be ambiguous.
 
-4. **Reconsider instead of blindly resampling.** The reason an attempt failed determines what the model is actually shown on retry.
+4. Reconsider instead of blindly resampling.  
+   The reason an attempt failed determines what the model is shown on retry.
 
-5. **Expose, don't reinterpret.** `result.parsed` shows the model's raw response rather than deciding what it should mean.
+5. Expose, don't reinterpret.  
+   `result.parsed` exposes the parsed model response rather than deciding what it should mean.
 
-6. **Reject invalid data, don't silently coerce it.** An out-of-range confidence or an unrecognized boolean-ish value is a reason to reject the attempt, never guess at.
+6. Reject invalid data instead of silently coercing it.  
+   An out-of-range confidence value or an unrecognized boolean-like value is a reason to reject the attempt, not guess.
 
-7. **Keep evidence retrieval outside BOOTH.** Applications own their own RAG, search, database, or tool infrastructure.
+7. Keep evidence retrieval outside BOOTH.  
+   Applications own their RAG, search, database, and tool infrastructure.
 
-8. **Do not pretend agreement is truth.** Agreement with a validator, confidence value, or retrieved evidence is not the same as proving a claim.
+8. Do not pretend agreement is truth.  
+   Agreement with a validator, confidence value, or retrieved evidence does not prove a claim.
 
-9. **Stay provider-agnostic.** BOOTH works with any LLM provider because your application supplies the model-calling function.
+9. Stay provider-agnostic.  
+   BOOTH works with your model-calling function rather than requiring a specific provider.
 
-10. **Don't collapse distinct failures into one bucket.** A blank input, a crashing dependency, and a genuine disagreement are different problems and should be distinguishable without reading BOOTH's own source.
+10. Keep distinct failures distinguishable.  
+    A blank input, a crashing dependency, and a genuine disagreement are different problems. You should not have to read BOOTH's source to tell them apart.
 
 ---
 
-**## 📚 Learn More
-- TUTORIAL.md — Complete reference for every function, type, property, and method in BOOTH's API.
-- USECASES.md — Detailed guide on where BOOTH fits in your architecture and where it doesn't.
-- CHANGELOG.md — Release notes and history of features, bug fixes, and API evolution.
-- examples/ — Real, runnable integration examples across providers and models, with documented results.
-- TROUBLESHOOTING.md — Known gotchas from real integration runs, with fixes.
+## 📚 Learn More
+
+| Resource | What it covers |
+| :--- | :--- |
+| [Tutorial](TUTORIAL.md) | Reference for BOOTH's functions, types, properties, and methods. |
+| [Use Cases](USECASES.md) | Where BOOTH fits in your architecture—and where it does not. |
+| [Changelog](CHANGELOG.md) | Releases, bug fixes, and API changes. |
+| [Examples](examples/) | Runnable integrations with documented results. |
+| [Troubleshooting](TROUBLESHOOTING.md) | Known integration issues and fixes. |
+| [Contributing](CONTRIBUTING.md) | Bug reports, reproductions, and contribution guidelines. |
+
 ---
 
 ## 🤝 Contributing
 
-BOOTH is small on purpose. That's a design constraint, not a lack of ambition. Bug reports and confirmed edge cases are the most valuable kind of contribution right now.
+BOOTH is small on purpose. That's a design constraint, not a lack of ambition.
 
-See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to report a bug well, what a good reproduction looks like, and what BOOTH's "small on purpose" stance means for feature PRs specifically.
+Bug reports and confirmed edge cases are especially valuable.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- How to report a bug.
+- What makes a useful reproduction.
+- What "small on purpose" means for feature proposals and pull requests.
 
 ---
 
@@ -280,4 +312,4 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to report a bug well, what a 
 
 This is the official BOOTH repository, maintained by Vedant Brahmbhatt.
 
-BOOTH is released under the MIT License. See LICENSE for the full text.
+BOOTH is released under the MIT License. See [LICENSE](LICENSE) for the full text.
