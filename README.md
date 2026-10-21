@@ -26,13 +26,13 @@
 
 <p align="center">
 
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/TUTORIAL.md">\<strong>Tutorial</strong></a> •
+  <a href="https://github.com/Vedantgitbot/booth/blob/main/TUTORIAL.md"><strong>Tutorial</strong></a> •
 
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/USECASES.md">\<strong>Use Cases</strong></a> •
+  <a href="https://github.com/Vedantgitbot/booth/blob/main/USECASES.md"><strong>Use Cases</strong></a> •
 
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/CHANGELOG.md">\<strong>Changelog</strong></a> •
+  <a href="https://github.com/Vedantgitbot/booth/blob/main/CHANGELOG.md"><strong>Changelog</strong></a> •
 
-  <a href="https://github.com/Vedantgitbot/booth/blob/main/CONTRIBUTING.md">\<strong>Contributing</strong></a> •
+  <a href="https://github.com/Vedantgitbot/booth/blob/main/CONTRIBUTING.md"><strong>Contributing</strong></a> •
 
   <a href="https://github.com/Vedantgitbot/booth/issues"><strong>Issues</strong></a>
 
