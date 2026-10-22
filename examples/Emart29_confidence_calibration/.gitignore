@@ -1,0 +1,16 @@
+# local secrets and environments
+.env
+.env.*
+.venv/
+venv/
+
+# python
+__pycache__/
+*.pyc
+
+# logs and outputs
+*.log
+*.out
+# uncompressed raw outputs (the committed copy is raw_outputs.jsonl.gz)
+raw_outputs.jsonl
+*.parquet
