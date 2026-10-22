@@ -73,8 +73,10 @@ def build_sample(parquet_path):
         import pyarrow.parquet as pq
     except ImportError:
         sys.exit("--build-sample needs pyarrow (example-only): pip install pyarrow")
-    rows = pq.read_table(parquet_path, columns=["question_id", "question", "answer"]).to_pylist()
-    rows.sort(key=lambda r: r["question_id"])
+    table = pq.read_table(parquet_path, columns=["question_id", "question", "answer"]).to_pylist()
+    # rc.nocontext lists many questions twice (once per evidence domain), so
+    # sample unique question_ids, not rows.
+    rows = sorted({r["question_id"]: r for r in table}.values(), key=lambda r: r["question_id"])
     picked = random.Random(SAMPLE_SEED).sample(rows, SAMPLE_SIZE)
     sample = [
         {
@@ -87,7 +89,7 @@ def build_sample(parquet_path):
     ]
     with open(SAMPLE_PATH, "w", encoding="utf-8") as f:
         json.dump(sample, f, ensure_ascii=False, indent=1)
-    print(f"wrote {len(sample)} questions (of {len(rows)}) to {SAMPLE_PATH}")
+    print(f"wrote {len(sample)} questions (of {len(rows)} unique, {len(table)} rows) to {SAMPLE_PATH}")
 
 
 def load_sample():
