@@ -15,8 +15,9 @@ Models:
 Usage:
     python run_example.py                    # run (resumable) + print report
     python run_example.py --limit 20         # quick smoke test
-    python run_example.py --report-only      # re-print report from raw outputs
-    python run_example.py --audit 50         # print the grader-audit sample
+    python run_example.py --report-only      # re-print report (uses raw_outputs.jsonl,
+                                             # else the committed raw_outputs.jsonl.gz)
+    python run_example.py --report-only --audit 50   # + grader-audit sample
     python run_example.py --build-sample validation.parquet
         # rebuild triviaqa_sample.json from the TriviaQA parquet (needs pyarrow)
 
@@ -179,12 +180,13 @@ def ollama_info(models):
 
 # ---------------------------------------------------------------- running
 
-def load_raw():
+def load_raw(allow_committed=True):
+    """Rows from this run's raw_outputs.jsonl, else (for reports only) the committed .gz."""
     rows = []
     if os.path.exists(RAW_PATH):
         with open(RAW_PATH, encoding="utf-8") as f:
             rows = [json.loads(line) for line in f if line.strip()]
-    elif os.path.exists(RAW_PATH + ".gz"):
+    elif allow_committed and os.path.exists(RAW_PATH + ".gz"):
         with gzip.open(RAW_PATH + ".gz", "rt", encoding="utf-8") as f:
             rows = [json.loads(line) for line in f if line.strip()]
     return rows
@@ -298,10 +300,11 @@ def report(rows, model):
         print(f"| {label} | {len(inb)} | {sum(inb)} | {fmt_ci(sum(inb), len(inb))} |")
 
     values = {}
-    for c, _ in usable:
-        values[c] = values.get(c, 0) + 1
-    print("\nDistinct confidence values emitted: "
-          + ", ".join(f"{c:g}×{k}" for c, k in sorted(values.items())))
+    for c, y in usable:
+        values.setdefault(c, []).append(y)
+    print("\nAccuracy per distinct confidence value emitted: "
+          + ", ".join(f"{c:g} → {sum(ys)}/{len(ys)} ({pct(sum(ys), len(ys))})"
+                      for c, ys in sorted(values.items())))
 
     above = [y for c, y in usable if c >= THRESHOLD]
     below = [y for c, y in usable if c < THRESHOLD]
@@ -400,7 +403,8 @@ def main():
     print("CONFIG " + json.dumps(config, sort_keys=True))
 
     if not args.report_only:
-        done = {(r["model"], r["id"]) for r in load_raw()}
+        # Resume only from this machine's own run, never from the committed outputs.
+        done = {(r["model"], r["id"]) for r in load_raw(allow_committed=False)}
         for model in models:
             run_model(model, ollama_call_fn(model), sample, done)
         if groq_key:
