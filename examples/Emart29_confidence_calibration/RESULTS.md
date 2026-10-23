@@ -157,19 +157,25 @@ python run_example.py --report-only --audit 50       # tables + audit sample
 ```
 
 - `run_example.py` only uses the standard library plus `boothpy`. Model calls go to Ollama over HTTP with `urllib`.
-- `raw_outputs.jsonl.gz` holds every `BoothResult.to_dict()` (all attempts, `raw_text`, parsed fields) plus grades and
-  timings for the run above. `--report-only` reads it if no local `raw_outputs.jsonl` exists. A fresh run writes its
-  own `raw_outputs.jsonl` and never resumes from the committed file.
-- **After the model run, the script was edited in three ways that don't affect what the models were asked:**
-  it now prints the per-value accuracy line, `--report-only` can read the `.gz`, and resume no longer reads the
-  committed `.gz`. The report below was regenerated from the saved outputs with the final script, and is
-  byte-identical whether it is read from `raw_outputs.jsonl` or `raw_outputs.jsonl.gz`.
+- `raw_outputs_qwen2.5-7b-instruct.jsonl.gz` and `raw_outputs_llama3.2-3b.jsonl.gz` hold, one file per model, every
+  `BoothResult.to_dict()` (all attempts, `raw_text`, parsed fields) plus grades and timings for the run above.
+  `--report-only` reads them if no local uncompressed `raw_outputs_<model>.jsonl` exists. A fresh run writes its own
+  `raw_outputs_<model>.jsonl` and never resumes from the committed files.
+- **Determinism spot check:** re-running the first sampled question (`qw_8575`) for llama3.2:3b from a fresh copy,
+  with only the committed files present, made a new model call and reproduced the committed `raw_text` byte for byte
+  on the same machine.
+- **After the model run, the script was edited in ways that don't affect what the models were asked:**
+  it now prints the per-value accuracy line, `--report-only` can read the `.gz` files, resume no longer reads the
+  committed files, and raw outputs are split into one file per model (the rows themselves are unchanged). The report
+  below was regenerated from the saved outputs with the final script, and is byte-identical whether it is read from
+  the `.jsonl` or the `.jsonl.gz` files.
 
 | File | SHA-256 |
 |---|---|
-| `run_example.py` (final) | `5d13cb222f1ba42e8f71ce8458038ec5e0cf87211896864bedc8f3e98e9ade04` |
+| `run_example.py` (final) | `9ad8182f31971351a6c4488e35721aa51ce9e897c2a2d3936a45a8ccfa8fe51c` |
 | `triviaqa_sample.json` | `ef6ded880d36b1a7b0f46444e99c0cf5e52b8c21e27ef39a9fe502e260654618` |
-| `raw_outputs.jsonl` (uncompressed, 600 lines) | `cba718ee4cbdf84dbdc78d33eb7f7620825a0347f2ad426e206a835e52b4795c` |
+| `raw_outputs_qwen2.5-7b-instruct.jsonl` (uncompressed, 300 lines) | `2d0debbe8e74a79e418fe510cf2b63f892a69df7b42ffd14ade00760d9806747` |
+| `raw_outputs_llama3.2-3b.jsonl` (uncompressed, 300 lines) | `5759d74bd5efb1d88ac71a4ba9423a05b22255a652f6a3d48fb4c8d588a6a374` |
 | report stdout below | `a3d670947cfa1b66d3a498423c48023d72afa8ab8b45e37faa1580b68c4ab710` |
 
 ## Actual stdout

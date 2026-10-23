@@ -11,6 +11,6 @@ __pycache__/
 # logs and outputs
 *.log
 *.out
-# uncompressed raw outputs (the committed copy is raw_outputs.jsonl.gz)
-raw_outputs.jsonl
+# uncompressed raw outputs (the committed copies are raw_outputs_<model>.jsonl.gz)
+raw_outputs_*.jsonl
 *.parquet

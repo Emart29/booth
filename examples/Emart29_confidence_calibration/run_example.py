@@ -15,8 +15,8 @@ Models:
 Usage:
     python run_example.py                    # run (resumable) + print report
     python run_example.py --limit 20         # quick smoke test
-    python run_example.py --report-only      # re-print report (uses raw_outputs.jsonl,
-                                             # else the committed raw_outputs.jsonl.gz)
+    python run_example.py --report-only      # re-print report (uses raw_outputs_<model>.jsonl,
+                                             # else the committed raw_outputs_<model>.jsonl.gz)
     python run_example.py --report-only --audit 50   # + grader-audit sample
     python run_example.py --build-sample validation.parquet
         # rebuild triviaqa_sample.json from the TriviaQA parquet (needs pyarrow)
@@ -50,7 +50,6 @@ except ImportError:
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE_PATH = os.path.join(HERE, "triviaqa_sample.json")
-RAW_PATH = os.path.join(HERE, "raw_outputs.jsonl")
 
 SAMPLE_SIZE = 300
 SAMPLE_SEED = 0
@@ -180,23 +179,31 @@ def ollama_info(models):
 
 # ---------------------------------------------------------------- running
 
-def load_raw(allow_committed=True):
-    """Rows from this run's raw_outputs.jsonl, else (for reports only) the committed .gz."""
+def raw_path(model):
+    """One raw-output file per model, e.g. raw_outputs_qwen2.5-7b-instruct.jsonl."""
+    return os.path.join(HERE, "raw_outputs_" + re.sub(r"[:/]", "-", model) + ".jsonl")
+
+
+def load_raw(model, allow_committed=True):
+    """Rows from this run's .jsonl, else (for reports only) the committed .jsonl.gz."""
+    path = raw_path(model)
     rows = []
-    if os.path.exists(RAW_PATH):
-        with open(RAW_PATH, encoding="utf-8") as f:
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
             rows = [json.loads(line) for line in f if line.strip()]
-    elif allow_committed and os.path.exists(RAW_PATH + ".gz"):
-        with gzip.open(RAW_PATH + ".gz", "rt", encoding="utf-8") as f:
+    elif allow_committed and os.path.exists(path + ".gz"):
+        with gzip.open(path + ".gz", "rt", encoding="utf-8") as f:
             rows = [json.loads(line) for line in f if line.strip()]
     return rows
 
 
-def run_model(name, call_fn, sample, done):
-    todo = [q for q in sample if (name, q["id"]) not in done]
+def run_model(name, call_fn, sample):
+    # Resume only from this machine's own run, never from the committed outputs.
+    done = {r["id"] for r in load_raw(name, allow_committed=False)}
+    todo = [q for q in sample if q["id"] not in done]
     print(f"[{name}] {len(sample) - len(todo)} already done, {len(todo)} to run", flush=True)
     start = time.time()
-    with open(RAW_PATH, "a", encoding="utf-8") as out:
+    with open(raw_path(name), "a", encoding="utf-8") as out:
         for i, q in enumerate(todo, 1):
             t = time.time()
             result = booth.check(call_fn, q["question"], threshold=THRESHOLD, max_retries=MAX_RETRIES)
@@ -403,20 +410,19 @@ def main():
     print("CONFIG " + json.dumps(config, sort_keys=True))
 
     if not args.report_only:
-        # Resume only from this machine's own run, never from the committed outputs.
-        done = {(r["model"], r["id"]) for r in load_raw(allow_committed=False)}
         for model in models:
-            run_model(model, ollama_call_fn(model), sample, done)
+            run_model(model, ollama_call_fn(model), sample)
         if groq_key:
-            run_model(f"groq/{GROQ_MODEL}", groq_call_fn(GROQ_MODEL, groq_key), sample, done)
+            run_model(f"groq/{GROQ_MODEL}", groq_call_fn(GROQ_MODEL, groq_key), sample)
         else:
             print("Skipping Groq: set GROQ_API_KEY to include the hosted model.")
 
     ids = {q["id"] for q in sample}
-    rows = [r for r in load_raw() if r["id"] in ids]
+    all_models = models + [f"groq/{GROQ_MODEL}"]
+    rows = [r for m in all_models for r in load_raw(m) if r["id"] in ids]
     if not rows:
         sys.exit("No raw outputs yet. Run without --report-only first.")
-    for model in [m for m in models] + [f"groq/{GROQ_MODEL}"]:
+    for model in all_models:
         report(rows, model)
     if args.audit:
         print_audit(rows, args.audit)
